@@ -1,7 +1,7 @@
 # BCC
 Boat Cruise Control
 
-I'm Soaring Skipper and developing a Cruise Control for my RIB boat. 
+I'm Soaring Skipper and developing a Cruise Control for my RIB boat. After being pulled over by the Water Police twice in one week, while trying to obey the speed limit of 20 kmh, I had enough. Since my RIB likes to speed it does not really like to go relatively slow at exactly 20 kmh, which means I have to constantly watch the speed and ajust. And even then the Police are not satisfied. So I decided to do something about it, so next summer I will be able to relax about the speed on stretches where I may not speed, click in the right speed and enjoy the view.
 
 Existing car cruise controls are unsuitable, because they operate via a pull cable. And once activated the gas pedal returns to starting position. The cruise control has the throttle all to itself and can pull it open as much as needed.
 In a boat the cable is a stiff push-pull type, and the throttle stays fixed at the position in which you let go of it. So the throttle is also fixed, so a cruise control cannot manipulate it directly.
