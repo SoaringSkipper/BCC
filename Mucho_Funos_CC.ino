@@ -40,9 +40,9 @@ const int           MaxTotalSpeed            = 31;                   // max 30 (
 const int            MinTotalSpeed            = 4;                  // min 5 (-1) khm with CC
 
 const int             DelayAfterCorrection_ms   = 10;
-const int              Step2StepDelay_mus        = 100;           // tested, must be >= 40
-const unsigned int      Zero2MiddlePosition_steps = 16000;       // 200 mm
-const unsigned int       MaxTravel                 = 8000;      // 100 mm
+const int              Step2StepDelay_mus        = 100;          // tested, must be >= 40
+const unsigned int      Zero2MiddlePosition_steps = 16000;      // 200 mm
+const unsigned int       MaxTravel                 = 8000;     // 100 mm
 const unsigned int        MinPosition               = Zero2MiddlePosition_steps - MaxTravel;
 const unsigned int         MaxPosition               = Zero2MiddlePosition_steps + MaxTravel;
 static const int                                RXPin = 10, TXPin = 11;  // not all pins on the Mega are suitable for SoftwareSerial RX! 10 is OK.
