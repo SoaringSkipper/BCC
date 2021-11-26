@@ -1,8 +1,7 @@
 // Cruise Control voor BBM
-char MuchoFunosCC[35] = "### Mucho Funos CC V0.8, incl. GPS";
+char MuchoFunosCC[] = "### Mucho Funos CC V0.82, incl. GPS via HW Serial";
 
 #include <TinyGPS++.h>
-#include <SoftwareSerial.h>
 #include <TMC2130Stepper.h>
 #include <Arduino.h>
 #include <SPI.h>
@@ -18,9 +17,9 @@ char MuchoFunosCC[35] = "### Mucho Funos CC V0.8, incl. GPS";
 #define SCK_PIN             52
 #define CS_PIN              53
 #define ENDSTOP_PIN         02
+#define MINUS_PIN           18
 #define PLUS_PIN            19
 #define STOP_PIN            07  // temp pin because temp not in use TODO: fase out, becaus we use the Arduino external Reset button
-#define MINUS_PIN           18
 #define FROM_ZERO           HIGH
 #define TOWARDS_ZERO        LOW
 #define STEPS_PER_MM        804,5977011494250                                     // MEASURED
@@ -45,8 +44,7 @@ const unsigned int      Zero2MiddlePosition_steps = 16000;      // 200 mm
 const unsigned int       MaxTravel                 = 8000;     // 100 mm
 const unsigned int        MinPosition               = Zero2MiddlePosition_steps - MaxTravel;
 const unsigned int         MaxPosition               = Zero2MiddlePosition_steps + MaxTravel;
-static const int                                RXPin = 10, TXPin = 11;  // not all pins on the Mega are suitable for SoftwareSerial RX! 10 is OK.
-static const uint32_t                          GPSBaud = 9600;
+static const uint32_t                         GPSBaud = 9600;
 
 // Global Vars
 volatile bool               EndStopReached         = false; 
@@ -79,11 +77,9 @@ long   ThrottleStartPosition                    = -1;
 char  Max_str[5]                                = " ";  // empty or "max!"
 
 
-// intiation statements that cannot reside within a function
+// intialization statements that cannot reside within a function
 U8G2_SH1106_128X64_NONAME_F_HW_I2C u8g2( U8G2_R0 );  /* u8g2 Display Constructor */
 TinyGPSPlus gps;                                    // The TinyGPS++ object
-SoftwareSerial SwSerial(RXPin, TXPin);             // The serial connection to the GPS device
-
 
 // the Program
 void setup() 
@@ -94,9 +90,10 @@ void setup()
   Serial.print( MuchoFunosCC );
   Serial.print( " starting ...\n"  );
 
+  Serial3.begin(GPSBaud);
+
   u8g2.begin();
 
-  SwSerial.begin(GPSBaud);
   
   TMC2130Stepper driver = TMC2130Stepper(EN_PIN, DIR_PIN, STEP_PIN, CS_PIN, MOSI_PIN, MISO_PIN, SCK_PIN);
   driver.begin();            // Initiate pins and registeries
@@ -110,7 +107,8 @@ void setup()
   attachInterrupt( digitalPinToInterrupt( PLUS_PIN ),    ISR_PlusPressed,    FALLING );
   attachInterrupt( digitalPinToInterrupt( STOP_PIN ),    ISR_StopPressed,    FALLING );
   attachInterrupt( digitalPinToInterrupt( MINUS_PIN ),   ISR_MinusPressed,   FALLING );
-  
+
+  Serial.print( " EOF Setup \n"  );
 } // setup
 
 void loop() {
@@ -183,8 +181,8 @@ void loop() {
               
     } // if 
 
-//    ReadGPSandDelay( LoopSleep_ms ); 
-    SimulateCurrentSpeed();  delay( LoopSleep_ms );  // for testing w/o GPS with potmeter speed
+    ReadGPSandDelay( LoopSleep_ms ); 
+//    SimulateCurrentSpeed();  delay( LoopSleep_ms );  // for testing w/o GPS with potmeter speed
     
   } // while
 } // Loop()
@@ -389,7 +387,7 @@ void ReadGPSandDelay( unsigned long _delay_ms )
 
   do 
   {
-    while (SwSerial.available()) gps.encode(SwSerial.read());
+    while (Serial3.available()) gps.encode(Serial3.read());
   
     if (gps.speed.isUpdated())
     {
