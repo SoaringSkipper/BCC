@@ -1,5 +1,5 @@
 // Cruise Control voor BBM
-char MuchoFunosCC[] = "### Mucho Funos CC V0.82, incl. GPS via HW Serial";
+char MuchoFunosCC[] = "### Mucho Funos CC V0.83, incl. Reset with light sensors.";
 
 #include <TinyGPS++.h>
 #include <TMC2130Stepper.h>
@@ -9,6 +9,8 @@ char MuchoFunosCC[] = "### Mucho Funos CC V0.82, incl. GPS via HW Serial";
   
 #define POTMETER_BIG_PIN    A0
 #define POTMETER_SMALL_PIN  A1
+#define POS_PLUS_PIN        06
+#define POS_MINUS_PIN       07  
 #define EN_PIN              46 
 #define STEP_PIN            48 
 #define DIR_PIN             49  
@@ -16,12 +18,11 @@ char MuchoFunosCC[] = "### Mucho Funos CC V0.82, incl. GPS via HW Serial";
 #define MOSI_PIN            51
 #define SCK_PIN             52
 #define CS_PIN              53
-#define ENDSTOP_PIN         02
 #define MINUS_PIN           18
 #define PLUS_PIN            19
 #define STOP_PIN            07  // temp pin because temp not in use TODO: fase out, becaus we use the Arduino external Reset button
-#define FROM_ZERO           HIGH
-#define TOWARDS_ZERO        LOW
+#define GO_MINUS            HIGH
+#define GO_PLUS             LOW
 #define STEPS_PER_MM        804,5977011494250                                     // MEASURED
 
 // Global Constants
@@ -40,14 +41,12 @@ const int            MinTotalSpeed            = 4;                  // min 5 (-1
 
 const int             DelayAfterCorrection_ms   = 10;
 const int              Step2StepDelay_mus        = 100;          // tested, must be >= 40
-const unsigned int      Zero2MiddlePosition_steps = 16000;      // 200 mm
-const unsigned int       MaxTravel                 = 8000;     // 100 mm
-const unsigned int        MinPosition               = Zero2MiddlePosition_steps - MaxTravel;
-const unsigned int         MaxPosition               = Zero2MiddlePosition_steps + MaxTravel;
-static const uint32_t                         GPSBaud = 9600;
+const long              MaxTravel                 = 8000;       // 10 mm
+const long               MinPosition               = -MaxTravel;
+const long                MaxPosition               = MaxTravel;
+static const uint32_t                      GPSBaud = 9600;
 
 // Global Vars
-volatile bool               EndStopReached         = false; 
 volatile bool                PlusPressed          = false; 
 volatile bool                 StopPressed        = false; 
 volatile bool                  MinusPressed     = false; 
@@ -92,18 +91,15 @@ void setup()
 
   Serial3.begin(GPSBaud);
 
-  u8g2.begin();
-
+  u8g2.begin();  // Start Display
   
   TMC2130Stepper driver = TMC2130Stepper(EN_PIN, DIR_PIN, STEP_PIN, CS_PIN, MOSI_PIN, MISO_PIN, SCK_PIN);
   driver.begin();            // Initiate pins and registeries
   
-  pinMode( ENDSTOP_PIN, INPUT_PULLUP );
   pinMode( PLUS_PIN,    INPUT_PULLUP );
   pinMode( STOP_PIN,    INPUT_PULLUP );
   pinMode( MINUS_PIN,   INPUT_PULLUP );
 
-  attachInterrupt( digitalPinToInterrupt( ENDSTOP_PIN ), ISR_EndStopReached, FALLING );
   attachInterrupt( digitalPinToInterrupt( PLUS_PIN ),    ISR_PlusPressed,    FALLING );
   attachInterrupt( digitalPinToInterrupt( STOP_PIN ),    ISR_StopPressed,    FALLING );
   attachInterrupt( digitalPinToInterrupt( MINUS_PIN ),   ISR_MinusPressed,   FALLING );
@@ -150,25 +146,22 @@ void loop() {
         {
           if( CurrentSpeed < SetSpeed )            // this is where it happens, the speed corrections  //
           {
-            if(  CurrentPosition <= MinPosition )
-            {
-              Serial.println( "Min motorposition reached: " );
-              Serial.println( CurrentPosition );
-            }
+            //TODO: testing the parameters so this will never occur: CurrentPosition >= MaxPosition
+            if( CurrentPosition >= MaxPosition ) Serial.println( "Max motorposition reached" );
             else
             {
               DirectionNeeded = '+';
-              MoveSteps( TOWARDS_ZERO, CorrectionSteps );
+              MoveSteps( GO_PLUS, CorrectionSteps );
               CorrectionAttempts++;  
             }
           } // if
           else if ( CurrentSpeed > SetSpeed)
           {
-            if( CurrentPosition >= MaxPosition ) Serial.println( "Max motorposition reached" );
+            if(  CurrentPosition <= MinPosition ) Serial.println( "Min motorposition reached" );
             else
             {
               DirectionNeeded = '-';
-              MoveSteps( FROM_ZERO, CorrectionSteps );
+              MoveSteps( GO_MINUS, CorrectionSteps );
               CorrectionAttempts++;  
             }
           } // else if
@@ -181,8 +174,8 @@ void loop() {
               
     } // if 
 
-    ReadGPSandDelay( LoopSleep_ms ); 
-//    SimulateCurrentSpeed();  delay( LoopSleep_ms );  // for testing w/o GPS with potmeter speed
+//    ReadGPSandDelay( LoopSleep_ms ); 
+    SimulateCurrentSpeed();  delay( LoopSleep_ms );  // for testing w/o GPS with potmeter speed
     
   } // while
 } // Loop()
@@ -261,7 +254,7 @@ void SimulateCurrentSpeed() // gets current speed SOG
   //
   // TEMP TEST CODE POTENTIOMETER
       _SOG = analogRead( POTMETER_BIG_PIN );
-      _SOG = map( _SOG, 0, 1023, 10, 30 );
+      _SOG = map( _SOG, 0, 1023, 14, 26 );
       _Result = 1;
   // TEMP TEST CODE
   
@@ -272,10 +265,6 @@ void SimulateCurrentSpeed() // gets current speed SOG
 } // SimulateCurrentSpeed()
 
 
-void ISR_EndStopReached()
-{
-  EndStopReached = true;
-}
 void ISR_MinusPressed()
 {
   MinusPressed = true;
@@ -324,7 +313,7 @@ void MoveSteps( byte _Direction, long int _Steps )
     delayMicroseconds( Step2StepDelay_mus );
   }
 
-  if( _Direction == TOWARDS_ZERO )  CurrentPosition -= _Steps;  
+  if( _Direction == GO_PLUS )  CurrentPosition -= _Steps;  
   else                              CurrentPosition += _Steps; 
 
 } // MoveSteps()
@@ -447,28 +436,35 @@ long ReadThrottlePosition()
 
 void Reset2MiddlePosition()
 {
-  long int _StepCounter = 0;
+  int      _PositionMinus;
+  int      _PositionPlus;
 
-  // go to position 0
-  digitalWrite( DIR_PIN, TOWARDS_ZERO );
-  EndStopReached = false;
-  for( _StepCounter = 0; EndStopReached == false; _StepCounter++ )
+  _PositionMinus = digitalRead( POS_MINUS_PIN );
+  _PositionPlus =  digitalRead( POS_PLUS_PIN );
+
+  digitalWrite( DIR_PIN, GO_PLUS );
+  while( _PositionMinus )
   {
     digitalWrite( STEP_PIN, HIGH );
     delayMicroseconds( Step2StepDelay_mus ); 
     digitalWrite( STEP_PIN, LOW );
     delayMicroseconds( Step2StepDelay_mus );
+      
+    _PositionMinus = digitalRead( POS_MINUS_PIN );
   }
-  delay( 10 );
 
-  EndStopReached = false;
+  digitalWrite( DIR_PIN, GO_MINUS );
+  while( _PositionPlus )
+  {
+    digitalWrite( STEP_PIN, HIGH );
+    delayMicroseconds( Step2StepDelay_mus ); 
+    digitalWrite( STEP_PIN, LOW );
+    delayMicroseconds( Step2StepDelay_mus );
+      
+    _PositionPlus =  digitalRead( POS_PLUS_PIN );
+  }
+    
   CurrentPosition = 0;
-  Serial.print( "motorposition reached: " );
-  Serial.println( CurrentPosition );
-
-  // go from position 0 to middle position
-  MoveSteps( FROM_ZERO, Zero2MiddlePosition_steps );
-
   Serial.print( "motorposition reached: " );
   Serial.println( CurrentPosition );
   
@@ -489,7 +485,6 @@ void ResetCC()
   DirectionNeeded = ' ';
   ThrottleStartPosition = -1;
   EffectCheckNumber = 0;
-  EndStopReached  = false;
   PlusPressed    = false; 
   StopPressed   = false; 
   MinusPressed = false; 
