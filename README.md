@@ -15,5 +15,5 @@ Three buttons are programmed, Plus, Minus and Stop. There is also an angle senso
 Since this CC is used mainly to comply with the widly imposed speed limit of 20 kmh in Holland, it will function between a trolling speed of 5 kmh and 30 kmh. Once the speed is set, only 5 kmh plus or minus is allowed. 
 This is to safeguard that the extra movement this CC is exacting on the throttle cable is not very much. So in case someone decides to slam the trottle, the extra length introduced by the CC won't directly be a mechanical problem, and will be compensated by extra springs in the CC mechanism. So I will allow no more extra throttle cable length than the springs will be able to handle.
 
-Status: Most parts are working, so almost ready with the electronics: Stepper motor, Display, buttons, algorithems seem OK for a first try out. GPS has been attached and works okay itself, but it interferes with the stepper motor? Each time the GPS fix-led blinks the stepper motor stops for about a second!?
+Status: Solved the issue of intermitting operation stepper motor. Appeared the SW Serial pins of the GPS took way too many CPU cycles, which froze the Arduino temporarily. Switched to HW Serial for GPS. Problem solved.
 
